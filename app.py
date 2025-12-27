@@ -167,19 +167,23 @@ def main():
     # Sidebar filters
     st.sidebar.header("🔍 Filters")
     
+    # Get min and max dates safely
+    min_date = pd.Timestamp(df['TransactionDate'].min()).date()
+    max_date = pd.Timestamp(df['TransactionDate'].max()).date()
+    
     date_range = st.sidebar.date_input(
         "Select Date Range",
-        value=(df['TransactionDate'].min().date(), df['TransactionDate'].max().date()),
-        min_value=df['TransactionDate'].min().date(),
-        max_value=df['TransactionDate'].max().date()
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date
     )
     
     if len(date_range) == 2:
         start_date, end_date = date_range
         # Convert to datetime for comparison
         start_datetime = pd.to_datetime(start_date)
-        end_datetime = pd.to_datetime(end_date)
-        df_filtered = df[(df['TransactionDate'] >= start_datetime) & (df['TransactionDate'] <= end_datetime)]
+        end_datetime = pd.to_datetime(end_date) + pd.Timedelta(days=1)  # Include end date
+        df_filtered = df[(df['TransactionDate'] >= start_datetime) & (df['TransactionDate'] < end_datetime)]
     else:
         df_filtered = df.copy()
     
