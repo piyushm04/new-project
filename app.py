@@ -176,7 +176,10 @@ def main():
     
     if len(date_range) == 2:
         start_date, end_date = date_range
-        df_filtered = df[(df['TransactionDate'].date() >= start_date) & (df['TransactionDate'].date() <= end_date)]
+        # Convert to datetime for comparison
+        start_datetime = pd.to_datetime(start_date)
+        end_datetime = pd.to_datetime(end_date)
+        df_filtered = df[(df['TransactionDate'] >= start_datetime) & (df['TransactionDate'] <= end_datetime)]
     else:
         df_filtered = df.copy()
     
