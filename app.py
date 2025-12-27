@@ -302,14 +302,22 @@ def main():
     
     # RFM Metrics by Segment
     st.subheader("📊 RFM Metrics by Customer Segment")
-    segment_metrics = rfm.groupby('Segment').agg({
-        'Recency': 'mean',
-        'Frequency': 'mean',
-        'Monetary': 'mean',
-        'CustomerID': 'count'
-    }).round(2).rename(columns={'CustomerID': 'Count'})
-    segment_metrics = segment_metrics.sort_values('Monetary', ascending=False)
-    st.dataframe(segment_metrics, use_container_width=True)
+    try:
+        # Reset index to make CustomerID a column for counting
+        rfm_reset = rfm.reset_index()
+        segment_metrics = rfm_reset.groupby('Segment').agg({
+            'Recency': 'mean',
+            'Frequency': 'mean',
+            'Monetary': 'mean',
+            'CustomerID': 'count'
+        }).round(2).rename(columns={'CustomerID': 'Count'})
+        segment_metrics = segment_metrics.sort_values('Monetary', ascending=False)
+        st.dataframe(segment_metrics, use_container_width=True)
+    except Exception as e:
+        st.warning(f"Could not generate segment metrics: {str(e)}")
+        # Fallback: just show count
+        segment_counts = rfm['Segment'].value_counts().to_frame('Count')
+        st.dataframe(segment_counts, use_container_width=True)
     
     # RFM Heatmap
     st.subheader("🔥 RFM Score Heatmap")
