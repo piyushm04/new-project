@@ -18,6 +18,10 @@ ENV/
 *.xls
 *.json
 
+# Resume files (personal information)
+*resume*.tex
+*resume*.pdf
+
 # IDE
 .vscode/
 .idea/
