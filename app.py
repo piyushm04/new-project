@@ -45,44 +45,91 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-@st.cache_data
-def load_data():
-    """Load or generate sample customer transaction data"""
-    try:
-        df = pd.read_csv('customer_data.csv')
-        # Ensure TransactionDate is datetime
-        df['TransactionDate'] = pd.to_datetime(df['TransactionDate'])
-    except:
-        # Generate synthetic data if file doesn't exist
-        np.random.seed(42)
-        n_customers = 2000
-        n_transactions = 15000
-        
-        customer_ids = [f'CUST_{i:05d}' for i in range(1, n_customers + 1)]
-        
-        data = []
-        base_date = datetime(2023, 1, 1)
-        
-        for _ in range(n_transactions):
-            customer_id = np.random.choice(customer_ids)
-            days_ago = np.random.randint(0, 730)  # Last 2 years
-            transaction_date = base_date + timedelta(days=days_ago)
-            amount = np.random.lognormal(mean=4.5, sigma=1.2)
-            quantity = np.random.poisson(lam=2) + 1
-            
-            data.append({
-                'CustomerID': customer_id,
-                'TransactionDate': transaction_date,
-                'Amount': round(amount, 2),
-                'Quantity': quantity,
-                'ProductCategory': np.random.choice(['Electronics', 'Clothing', 'Food', 'Books', 'Home & Garden']),
-                'Region': np.random.choice(['North', 'South', 'East', 'West', 'Central'])
-            })
-        
-        df = pd.DataFrame(data)
-        df['TransactionDate'] = pd.to_datetime(df['TransactionDate'])
-        df.to_csv('customer_data.csv', index=False)
+def generate_sample_data(platform_type="E-commerce", n_customers=2000, n_transactions=15000):
+    """Generate synthetic data based on platform type"""
+    np.random.seed(42)
     
+    customer_ids = [f'CUST_{i:05d}' for i in range(1, n_customers + 1)]
+    
+    # Platform-specific categories
+    platform_categories = {
+        "E-commerce": ['Electronics', 'Clothing', 'Food', 'Books', 'Home & Garden'],
+        "Retail": ['Apparel', 'Accessories', 'Footwear', 'Beauty', 'Home Decor'],
+        "SaaS": ['Basic Plan', 'Pro Plan', 'Enterprise', 'Add-ons', 'Support'],
+        "Marketplace": ['Electronics', 'Fashion', 'Home', 'Sports', 'Toys'],
+        "Custom": ['Product A', 'Product B', 'Product C', 'Product D', 'Product E']
+    }
+    
+    categories = platform_categories.get(platform_type, platform_categories["E-commerce"])
+    
+    data = []
+    base_date = datetime(2023, 1, 1)
+    
+    for _ in range(n_transactions):
+        customer_id = np.random.choice(customer_ids)
+        days_ago = np.random.randint(0, 730)  # Last 2 years
+        transaction_date = base_date + timedelta(days=days_ago)
+        amount = np.random.lognormal(mean=4.5, sigma=1.2)
+        quantity = np.random.poisson(lam=2) + 1
+        
+        data.append({
+            'CustomerID': customer_id,
+            'TransactionDate': transaction_date,
+            'Amount': round(amount, 2),
+            'Quantity': quantity,
+            'ProductCategory': np.random.choice(categories),
+            'Region': np.random.choice(['North', 'South', 'East', 'West', 'Central'])
+        })
+    
+    df = pd.DataFrame(data)
+    df['TransactionDate'] = pd.to_datetime(df['TransactionDate'])
+    return df
+
+@st.cache_data
+def load_data(uploaded_file=None, platform_type="E-commerce"):
+    """Load data from uploaded file or generate sample data"""
+    if uploaded_file is not None:
+        try:
+            # Try to read the uploaded file
+            df = pd.read_csv(uploaded_file)
+            
+            # Validate required columns
+            required_columns = ['CustomerID', 'TransactionDate', 'Amount']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                st.error(f"❌ Missing required columns: {', '.join(missing_columns)}")
+                st.info("Required columns: CustomerID, TransactionDate, Amount")
+                st.info("Optional columns: Quantity, ProductCategory, Region")
+                return None
+            
+            # Ensure TransactionDate is datetime
+            df['TransactionDate'] = pd.to_datetime(df['TransactionDate'], errors='coerce')
+            
+            # Fill missing optional columns with defaults
+            if 'Quantity' not in df.columns:
+                df['Quantity'] = 1
+            if 'ProductCategory' not in df.columns:
+                df['ProductCategory'] = 'General'
+            if 'Region' not in df.columns:
+                df['Region'] = 'Unknown'
+            
+            # Remove rows with invalid dates
+            df = df.dropna(subset=['TransactionDate'])
+            
+            if len(df) == 0:
+                st.error("❌ No valid data found in uploaded file")
+                return None
+            
+            st.success(f"✅ Successfully loaded {len(df):,} transactions from your file!")
+            return df
+            
+        except Exception as e:
+            st.error(f"❌ Error reading file: {str(e)}")
+            return None
+    
+    # Generate sample data based on platform type
+    df = generate_sample_data(platform_type)
     return df
 
 @st.cache_data
@@ -191,8 +238,52 @@ def main():
     st.markdown('<h1 class="main-header">📊 Customer360 Dashboard - RFM Analysis & Segmentation</h1>', unsafe_allow_html=True)
     st.markdown("---")
     
+    # Data Input Section
+    st.sidebar.header("📥 Data Input")
+    
+    data_source = st.sidebar.radio(
+        "Choose Data Source",
+        ["Upload Your Data", "Use Sample Data"],
+        help="Upload your own CSV file or use sample data for demonstration"
+    )
+    
+    uploaded_file = None
+    platform_type = "E-commerce"
+    
+    if data_source == "Upload Your Data":
+        uploaded_file = st.sidebar.file_uploader(
+            "Upload CSV File",
+            type=['csv'],
+            help="Upload a CSV file with columns: CustomerID, TransactionDate, Amount (optional: Quantity, ProductCategory, Region)"
+        )
+        
+        if uploaded_file is not None:
+            st.sidebar.success("✅ File uploaded successfully!")
+    else:
+        platform_type = st.sidebar.selectbox(
+            "Select Platform Type",
+            ["E-commerce", "Retail", "SaaS", "Marketplace", "Custom"],
+            help="Choose platform type to generate relevant sample data"
+        )
+        st.sidebar.info("💡 Using sample data for demonstration")
+    
     # Load data
-    df = load_data()
+    df = load_data(uploaded_file, platform_type)
+    
+    if df is None:
+        st.warning("⚠️ Please upload a valid CSV file or use sample data to continue.")
+        st.info("""
+        **Required CSV Format:**
+        - CustomerID: Unique customer identifier
+        - TransactionDate: Date of transaction (YYYY-MM-DD format)
+        - Amount: Transaction amount
+        
+        **Optional Columns:**
+        - Quantity: Number of items
+        - ProductCategory: Product category
+        - Region: Geographic region
+        """)
+        st.stop()
     
     # Sidebar filters
     st.sidebar.header("🔍 Filters")
