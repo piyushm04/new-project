@@ -15,7 +15,7 @@ warnings.filterwarnings('ignore')
 
 # Page configuration
 st.set_page_config(
-    page_title="Customer Segmentation & RFM Analysis",
+    page_title="Customer360 Dashboard - RFM Analysis",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -158,7 +158,7 @@ def perform_clustering(rfm):
     return rfm, pca
 
 def main():
-    st.markdown('<h1 class="main-header">📊 Customer Segmentation & RFM Analysis Dashboard</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">📊 Customer360 Dashboard - RFM Analysis & Segmentation</h1>', unsafe_allow_html=True)
     st.markdown("---")
     
     # Load data
@@ -402,7 +402,7 @@ def main():
     st.markdown(
         """
         <div style='text-align: center; color: gray; padding: 1rem;'>
-            <p>Customer Segmentation & RFM Analysis Dashboard | Built with Streamlit</p>
+            <p>Customer360 Dashboard | Built with Streamlit</p>
             <p>📊 Advanced Analytics | 🎯 Business Intelligence | 💡 Actionable Insights</p>
         </div>
         """,
