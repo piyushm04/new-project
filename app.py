@@ -50,6 +50,8 @@ def load_data():
     """Load or generate sample customer transaction data"""
     try:
         df = pd.read_csv('customer_data.csv')
+        # Ensure TransactionDate is datetime
+        df['TransactionDate'] = pd.to_datetime(df['TransactionDate'])
     except:
         # Generate synthetic data if file doesn't exist
         np.random.seed(42)
