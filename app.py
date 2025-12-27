@@ -88,6 +88,9 @@ def load_data():
 @st.cache_data
 def calculate_rfm(df):
     """Calculate RFM metrics for each customer"""
+    if len(df) == 0:
+        return pd.DataFrame()
+    
     reference_date = df['TransactionDate'].max() + timedelta(days=1)
     
     rfm = df.groupby('CustomerID').agg({
@@ -100,32 +103,45 @@ def calculate_rfm(df):
         'Amount': 'Monetary'
     })
     
-    # RFM Scoring (1-5 scale, where 5 is best)
-    rfm['R_Score'] = pd.qcut(rfm['Recency'].rank(method='first'), 5, labels=[5,4,3,2,1])
-    rfm['F_Score'] = pd.qcut(rfm['Frequency'].rank(method='first'), 5, labels=[1,2,3,4,5])
-    rfm['M_Score'] = pd.qcut(rfm['Monetary'].rank(method='first'), 5, labels=[1,2,3,4,5])
+    if len(rfm) == 0:
+        return pd.DataFrame()
     
-    rfm['R_Score'] = rfm['R_Score'].astype(int)
-    rfm['F_Score'] = rfm['F_Score'].astype(int)
-    rfm['M_Score'] = rfm['M_Score'].astype(int)
+    # RFM Scoring (1-5 scale, where 5 is best) - handle edge cases
+    try:
+        rfm['R_Score'] = pd.qcut(rfm['Recency'].rank(method='first'), 5, labels=[5,4,3,2,1], duplicates='drop')
+        rfm['F_Score'] = pd.qcut(rfm['Frequency'].rank(method='first'), 5, labels=[1,2,3,4,5], duplicates='drop')
+        rfm['M_Score'] = pd.qcut(rfm['Monetary'].rank(method='first'), 5, labels=[1,2,3,4,5], duplicates='drop')
+    except ValueError:
+        # If qcut fails, use quantile-based scoring
+        rfm['R_Score'] = pd.cut(rfm['Recency'], bins=5, labels=[5,4,3,2,1], duplicates='drop')
+        rfm['F_Score'] = pd.cut(rfm['Frequency'], bins=5, labels=[1,2,3,4,5], duplicates='drop')
+        rfm['M_Score'] = pd.cut(rfm['Monetary'], bins=5, labels=[1,2,3,4,5], duplicates='drop')
+    
+    # Fill NaN values with median score
+    rfm['R_Score'] = rfm['R_Score'].fillna(3).astype(int)
+    rfm['F_Score'] = rfm['F_Score'].fillna(3).astype(int)
+    rfm['M_Score'] = rfm['M_Score'].fillna(3).astype(int)
     
     rfm['RFM_Score'] = rfm['R_Score'].astype(str) + rfm['F_Score'].astype(str) + rfm['M_Score'].astype(str)
     
     # Customer Segments based on RFM
     def segment_customer(row):
-        if row['R_Score'] >= 4 and row['F_Score'] >= 4 and row['M_Score'] >= 4:
-            return 'Champions'
-        elif row['R_Score'] >= 3 and row['F_Score'] >= 3 and row['M_Score'] >= 3:
-            return 'Loyal Customers'
-        elif row['R_Score'] >= 4 and row['F_Score'] <= 2:
-            return 'At Risk'
-        elif row['R_Score'] <= 2 and row['F_Score'] >= 3:
-            return 'Hibernating'
-        elif row['R_Score'] >= 3 and row['F_Score'] <= 2:
-            return 'Potential Loyalists'
-        elif row['R_Score'] <= 2 and row['F_Score'] <= 2:
-            return 'Lost'
-        else:
+        try:
+            if row['R_Score'] >= 4 and row['F_Score'] >= 4 and row['M_Score'] >= 4:
+                return 'Champions'
+            elif row['R_Score'] >= 3 and row['F_Score'] >= 3 and row['M_Score'] >= 3:
+                return 'Loyal Customers'
+            elif row['R_Score'] >= 4 and row['F_Score'] <= 2:
+                return 'At Risk'
+            elif row['R_Score'] <= 2 and row['F_Score'] >= 3:
+                return 'Hibernating'
+            elif row['R_Score'] >= 3 and row['F_Score'] <= 2:
+                return 'Potential Loyalists'
+            elif row['R_Score'] <= 2 and row['F_Score'] <= 2:
+                return 'Lost'
+            else:
+                return 'Need Attention'
+        except:
             return 'Need Attention'
     
     rfm['Segment'] = rfm.apply(segment_customer, axis=1)
@@ -135,6 +151,9 @@ def calculate_rfm(df):
 @st.cache_data
 def perform_clustering(rfm):
     """Perform K-Means clustering on RFM metrics"""
+    if len(rfm) == 0:
+        return rfm, None
+    
     # Prepare data for clustering
     rfm_features = rfm[['Recency', 'Frequency', 'Monetary']].copy()
     
@@ -147,15 +166,24 @@ def perform_clustering(rfm):
     scaler = StandardScaler()
     rfm_scaled = scaler.fit_transform(rfm_features)
     
-    # K-Means clustering
-    kmeans = KMeans(n_clusters=5, random_state=42, n_init=10)
-    rfm['Cluster'] = kmeans.fit_predict(rfm_scaled)
+    # K-Means clustering - adjust clusters based on data size
+    n_clusters = min(5, max(2, len(rfm) // 10))  # At least 10 samples per cluster
     
-    # PCA for visualization
-    pca = PCA(n_components=2)
-    rfm_pca = pca.fit_transform(rfm_scaled)
-    rfm['PCA1'] = rfm_pca[:, 0]
-    rfm['PCA2'] = rfm_pca[:, 1]
+    try:
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+        rfm['Cluster'] = kmeans.fit_predict(rfm_scaled)
+        
+        # PCA for visualization
+        pca = PCA(n_components=min(2, len(rfm_features.columns)))
+        rfm_pca = pca.fit_transform(rfm_scaled)
+        rfm['PCA1'] = rfm_pca[:, 0]
+        rfm['PCA2'] = rfm_pca[:, 1] if rfm_pca.shape[1] > 1 else rfm_pca[:, 0]
+    except Exception as e:
+        # If clustering fails, assign all to cluster 0
+        rfm['Cluster'] = 0
+        rfm['PCA1'] = rfm_features['Recency']
+        rfm['PCA2'] = rfm_features['Frequency']
+        pca = None
     
     return rfm, pca
 
@@ -307,7 +335,11 @@ def main():
     # Customer Segmentation (Clustering)
     st.header("🔬 Advanced Customer Segmentation (K-Means Clustering)")
     
-    rfm_clustered, pca_model = perform_clustering(rfm)
+    try:
+        rfm_clustered, pca_model = perform_clustering(rfm)
+    except Exception as e:
+        st.error(f"Error performing clustering: {str(e)}")
+        st.stop()
     
     col1, col2 = st.columns(2)
     
@@ -422,14 +454,17 @@ def main():
     
     with col2:
         if st.button("Download Customer Segments (CSV)"):
-            segment_export = rfm_clustered[['Recency', 'Frequency', 'Monetary', 'Segment', 'Cluster']].copy()
-            csv = segment_export.to_csv(index=True)
-            st.download_button(
-                label="Click to Download",
-                data=csv,
-                file_name=f"customer_segments_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv"
-            )
+            try:
+                segment_export = rfm_clustered[['Recency', 'Frequency', 'Monetary', 'Segment', 'Cluster']].copy()
+                csv = segment_export.to_csv(index=True)
+                st.download_button(
+                    label="Click to Download",
+                    data=csv,
+                    file_name=f"customer_segments_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv"
+                )
+            except Exception as e:
+                st.error(f"Error generating export: {str(e)}")
     
     # Footer
     st.markdown("---")
