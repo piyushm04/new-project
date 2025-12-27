@@ -169,9 +169,15 @@ def main():
     # Sidebar filters
     st.sidebar.header("🔍 Filters")
     
+    # Ensure TransactionDate is datetime (safety check)
+    if not pd.api.types.is_datetime64_any_dtype(df['TransactionDate']):
+        df['TransactionDate'] = pd.to_datetime(df['TransactionDate'])
+    
     # Get min and max dates safely
-    min_date = pd.Timestamp(df['TransactionDate'].min()).date()
-    max_date = pd.Timestamp(df['TransactionDate'].max()).date()
+    min_timestamp = pd.Timestamp(df['TransactionDate'].min())
+    max_timestamp = pd.Timestamp(df['TransactionDate'].max())
+    min_date = min_timestamp.date()
+    max_date = max_timestamp.date()
     
     date_range = st.sidebar.date_input(
         "Select Date Range",
@@ -180,12 +186,15 @@ def main():
         max_value=max_date
     )
     
-    if len(date_range) == 2:
+    # Filter by date range
+    if isinstance(date_range, tuple) and len(date_range) == 2:
         start_date, end_date = date_range
-        # Convert to datetime for comparison
-        start_datetime = pd.to_datetime(start_date)
-        end_datetime = pd.to_datetime(end_date) + pd.Timedelta(days=1)  # Include end date
-        df_filtered = df[(df['TransactionDate'] >= start_datetime) & (df['TransactionDate'] < end_datetime)]
+        # Convert date objects to datetime for comparison
+        start_datetime = pd.Timestamp(start_date)
+        end_datetime = pd.Timestamp(end_date) + pd.Timedelta(days=1)  # Include end date
+        # Filter using datetime comparison (no .date() on Series)
+        mask = (df['TransactionDate'] >= start_datetime) & (df['TransactionDate'] < end_datetime)
+        df_filtered = df[mask].copy()
     else:
         df_filtered = df.copy()
     
