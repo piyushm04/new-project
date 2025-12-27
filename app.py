@@ -215,8 +215,18 @@ def main():
         (df_filtered['ProductCategory'].isin(category_filter))
     ]
     
+    # Check if filtered data is empty
+    if len(df_filtered) == 0:
+        st.warning("⚠️ No data found for the selected filters. Please adjust your filter criteria.")
+        st.stop()
+    
     # Calculate RFM
     rfm = calculate_rfm(df_filtered)
+    
+    # Check if RFM calculation returned empty
+    if len(rfm) == 0:
+        st.error("❌ Error calculating RFM metrics. Please try again.")
+        st.stop()
     
     # Key Metrics
     st.header("📈 Key Performance Indicators")
@@ -227,7 +237,8 @@ def main():
     with col2:
         st.metric("Total Revenue", f"${rfm['Monetary'].sum():,.2f}")
     with col3:
-        st.metric("Avg Transaction Value", f"${df_filtered['Amount'].mean():.2f}")
+        avg_txn = df_filtered['Amount'].mean() if len(df_filtered) > 0 else 0
+        st.metric("Avg Transaction Value", f"${avg_txn:.2f}")
     with col4:
         st.metric("Avg Customer Lifetime Value", f"${rfm['Monetary'].mean():.2f}")
     
@@ -274,17 +285,22 @@ def main():
     
     # RFM Heatmap
     st.subheader("🔥 RFM Score Heatmap")
-    rfm_pivot = rfm.groupby(['R_Score', 'F_Score'])['Monetary'].mean().reset_index()
-    rfm_pivot = rfm_pivot.pivot(index='R_Score', columns='F_Score', values='Monetary')
-    
-    fig_heatmap = px.imshow(
-        rfm_pivot,
-        labels=dict(x="Frequency Score", y="Recency Score", color="Avg Monetary Value"),
-        title="RFM Score Heatmap - Average Monetary Value",
-        color_continuous_scale="Viridis"
-    )
-    fig_heatmap.update_layout(height=500)
-    st.plotly_chart(fig_heatmap, use_container_width=True)
+    try:
+        rfm_pivot = rfm.groupby(['R_Score', 'F_Score'])['Monetary'].mean().reset_index()
+        if len(rfm_pivot) > 0:
+            rfm_pivot = rfm_pivot.pivot(index='R_Score', columns='F_Score', values='Monetary')
+            fig_heatmap = px.imshow(
+                rfm_pivot,
+                labels=dict(x="Frequency Score", y="Recency Score", color="Avg Monetary Value"),
+                title="RFM Score Heatmap - Average Monetary Value",
+                color_continuous_scale="Viridis"
+            )
+            fig_heatmap.update_layout(height=500)
+            st.plotly_chart(fig_heatmap, use_container_width=True)
+        else:
+            st.info("Not enough data to generate heatmap")
+    except Exception as e:
+        st.warning(f"Could not generate heatmap: {str(e)}")
     
     st.markdown("---")
     
