@@ -16,7 +16,15 @@ ENV/
 *.csv
 *.xlsx
 *.xls
-*.json
+# Allow package.json and config JSON files
+!package.json
+!package-lock.json
+!tsconfig.json
+!tailwind.config.js
+!next.config.js
+!postcss.config.js
+!vercel.json
+!.eslintrc.json
 
 # Resume files (personal information)
 *resume*.tex
