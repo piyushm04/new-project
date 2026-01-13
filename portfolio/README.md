@@ -1,4 +1,4 @@
-# Piyush Molawade - Portfolio Website
+# Piyush Portfolio - Data Analyst & Full Stack Developer
 
 A modern, responsive portfolio website built with Next.js, React, and Tailwind CSS. Showcasing projects, skills, experience, and contact information.
 
